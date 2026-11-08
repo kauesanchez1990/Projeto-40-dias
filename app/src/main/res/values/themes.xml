@@ -1,0 +1,7 @@
+<resources>
+    <style name="Theme.Projeto40Dias" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#FF0E0F11</item>
+        <item name="android:statusBarColor">#FF0E0F11</item>
+        <item name="android:navigationBarColor">#FF16181B</item>
+    </style>
+</resources>
