@@ -53,13 +53,24 @@ jobs:
             adb exec-out run-as br.com.projeto40dias tar -cf - -C files screenshots > shots.tar
 
       - name: Extrair capturas
+        if: always()
         run: |
-          mkdir -p out
-          tar -xf shots.tar -C out
+          mkdir -p out/screenshots
+          tar -xf shots.tar -C out || true
           ls -la out/screenshots
-          cat instrument.log
+          cat instrument.log || true
+          # Resumo visível como anotação do job (lido pela API).
+          LIST=$(ls out/screenshots | tr '\n' ' ')
+          echo "::notice title=capturas::$LIST"
+          if [ -f out/screenshots/erros.txt ]; then
+            ERR=$(sed ':a;N;$!ba;s/%/%25/g;s/\r//g;s/\n/%0A/g' out/screenshots/erros.txt)
+            echo "::warning title=erros::$ERR"
+          fi
+          LOG=$(tail -c 6000 instrument.log | sed ':a;N;$!ba;s/%/%25/g;s/\r//g;s/\n/%0A/g')
+          echo "::warning title=instrument::$LOG"
 
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: capturas-de-tela
           path: |

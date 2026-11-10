@@ -55,62 +55,79 @@ class ScreenshotTest {
     private fun desc(d: String) = rule.onAllNodesWithContentDescription(d).click()
     private fun scrollTo(t: String) = rule.onAllNodes(hasScrollToNodeAction()).onFirst().performScrollToNode(hasText(t))
 
+    /** Executa uma etapa; se falhar, registra o erro e segue para as próximas capturas. */
+    private fun step(name: String, block: () -> Unit) {
+        try { block() } catch (t: Throwable) {
+            File(dir, "erros.txt").appendText("$name: ${t.javaClass.simpleName}: ${t.message?.take(300)}\n")
+            runCatching { text("Cancelar") }
+        }
+    }
+
     @Test
     fun telasNovas() {
         // Aviso inicial
         runCatching { waitText("Entendi", 8_000); text("Entendi") }
         rule.waitForIdle()
+        step("inicio") { shot("00_inicio") }
 
         // ---------------- Dieta
-        desc("Dieta"); waitText("Almoço")
-        shot("01_dieta_com_botao_editar")
-        desc("Editar dieta"); waitText("Editar dieta"); waitText("Nova refeição")
-        shot("02_editar_dieta")
-        scrollTo("Jantar")
-        shot("03_editar_dieta_rolada")
-        scrollTo("Almoço"); text("Almoço")
-        waitText("Editar refeição")
-        shot("04_editar_refeicao")
-        text("Cancelar")
+        step("dieta") {
+            desc("Dieta"); waitText("MINHA DIETA")
+            shot("01_dieta_com_botao_editar")
+            desc("Editar dieta"); waitText("Pré-treino")
+            shot("02_editar_dieta")
+            scrollTo("Jantar")
+            shot("03_editar_dieta_rolada")
+            scrollTo("Almoço"); text("Almoço")
+            waitText("Editar refeição")
+            shot("04_editar_refeicao")
+            text("Cancelar")
+        }
 
         // ---------------- Treinos
-        desc("Treinos"); waitText("MEUS TREINOS")
-        shot("05_treinos_com_horario")
-        desc("Editar treino"); waitText("Editar treino")
-        text("SEG"); waitText("Supino reto")
-        shot("06_editar_treino_segunda")
-        text("Supino reto"); waitText("Editar exercício")
-        shot("07_editar_exercicio")
-        text("Cancelar")
-        text("Nova sessão na segunda"); waitText("Nova sessão")
-        shot("08_nova_sessao")
-        text("Cancelar")
+        step("treino") {
+            desc("Treinos"); waitText("MEUS TREINOS")
+            shot("05_treinos_com_horario")
+            desc("Editar treino"); waitText("Editar treino")
+            text("SEG"); waitText("Supino reto")
+            shot("06_editar_treino_segunda")
+            text("Supino reto"); waitText("Editar exercício")
+            shot("07_editar_exercicio")
+            text("Cancelar")
+            scrollTo("Nova sessão na segunda"); text("Nova sessão na segunda"); waitText("Nova sessão")
+            shot("08_nova_sessao")
+            text("Cancelar")
+        }
 
         // ---------------- Lembretes
-        desc("Perfil")
-        scrollTo("Lembretes e notificações"); text("Lembretes e notificações")
-        waitText("Refeições")
-        shot("09_lembretes")
-        scrollTo("Treinos")
-        shot("10_lembretes_agua_treinos")
-        scrollTo("Enviar notificação de teste")
-        shot("11_lembretes_outros")
+        step("lembretes") {
+            desc("Perfil")
+            scrollTo("Lembretes e notificações"); text("Lembretes e notificações")
+            waitText("Refeições")
+            shot("09_lembretes")
+            scrollTo("Treinos")
+            shot("10_lembretes_agua_treinos")
+            scrollTo("Enviar notificação de teste")
+            shot("11_lembretes_outros")
+        }
 
         // ---------------- Notificações reais (refeição e água), disparadas pelo próprio app
-        val c = (instr.targetContext.applicationContext as P40App).container
-        val lunch = runBlocking { c.db.mealDao().templates().first { it.label == "Almoço" } }
-        fun fire(kind: String, code: Int, id: Long = 0) = instr.targetContext.sendBroadcast(
-            Intent(instr.targetContext, ReminderReceiver::class.java).setAction(ReminderReceiver.ACTION_FIRE)
-                .putExtra(ReminderReceiver.EXTRA_KIND, kind).putExtra(ReminderReceiver.EXTRA_CODE, code)
-                .putExtra(ReminderReceiver.EXTRA_ID, id),
-        )
-        fire(ReminderScheduler.KIND_MEAL, 100_000 + lunch.id.toInt(), lunch.id)
-        Thread.sleep(1500)
-        fire(ReminderScheduler.KIND_WATER, ReminderScheduler.WATER_CODE)
-        Thread.sleep(2500)
-        instr.uiAutomation.executeShellCommand("cmd statusbar expand-notifications").close()
-        Thread.sleep(2500)
-        shot("12_notificacoes")
-        instr.uiAutomation.executeShellCommand("cmd statusbar collapse").close()
+        step("notificacoes") {
+            val c = (instr.targetContext.applicationContext as P40App).container
+            val lunch = runBlocking { c.db.mealDao().templates().first { it.label == "Almoço" } }
+            fun fire(kind: String, code: Int, id: Long = 0) = instr.targetContext.sendBroadcast(
+                Intent(instr.targetContext, ReminderReceiver::class.java).setAction(ReminderReceiver.ACTION_FIRE)
+                    .putExtra(ReminderReceiver.EXTRA_KIND, kind).putExtra(ReminderReceiver.EXTRA_CODE, code)
+                    .putExtra(ReminderReceiver.EXTRA_ID, id),
+            )
+            fire(ReminderScheduler.KIND_MEAL, 100_000 + lunch.id.toInt(), lunch.id)
+            Thread.sleep(1500)
+            fire(ReminderScheduler.KIND_WATER, ReminderScheduler.WATER_CODE)
+            Thread.sleep(2500)
+            instr.uiAutomation.executeShellCommand("cmd statusbar expand-notifications").close()
+            Thread.sleep(2500)
+            shot("12_notificacoes")
+            instr.uiAutomation.executeShellCommand("cmd statusbar collapse").close()
+        }
     }
 }
