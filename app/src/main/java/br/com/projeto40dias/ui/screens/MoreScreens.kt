@@ -47,14 +47,11 @@ import br.com.projeto40dias.data.db.BodyMeasurementEntity
 import br.com.projeto40dias.data.db.ProjectEntity
 import br.com.projeto40dias.data.prefs.Goals
 import br.com.projeto40dias.data.prefs.Profile
-import br.com.projeto40dias.data.prefs.Reminder
 import br.com.projeto40dias.domain.DatedValue
 import br.com.projeto40dias.domain.DaySummary
 import br.com.projeto40dias.domain.ProjectCalculator
 import br.com.projeto40dias.domain.ReportCalculator
 import br.com.projeto40dias.domain.WeekReport
-import br.com.projeto40dias.notifications.Notifier
-import br.com.projeto40dias.notifications.ReminderScheduler
 import br.com.projeto40dias.pdf.ReportPdfExporter
 import br.com.projeto40dias.ui.components.ChartPoint
 import br.com.projeto40dias.ui.components.LineChart
@@ -380,65 +377,5 @@ private fun ReportCard(r: WeekReport, highlight: Boolean, future: Boolean = fals
             StatTile("Exercícios", r.exerciseAdherencePct?.let { "$it%" } ?: "—", Modifier.weight(1f), sub = "adesão")
         }
     }
-    }
-}
-
-// =================================================================== LEMBRETES
-
-class RemindersViewModel(private val c: AppContainer, private val app: android.app.Application) : ViewModel() {
-    val reminders = c.settings.reminders.asState(this, emptyList())
-    fun save(r: Reminder) = viewModelScope.launch {
-        c.settings.saveReminder(r)
-        ReminderScheduler.apply(app, r)
-    }
-    fun test() = ReminderScheduler.test(app)
-}
-
-@Composable
-fun RemindersScreen(onBack: () -> Unit) {
-    val ctx = LocalContext.current
-    val app = ctx.applicationContext as android.app.Application
-    val vm = appViewModel { RemindersViewModel(it, app) }
-    val list by vm.reminders.collectAsState()
-    var granted by remember { mutableStateOf(Notifier.canNotify(ctx)) }
-    var testSent by remember { mutableStateOf(false) }
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted = it }
-
-    SubScreen("Lembretes", onBack) {
-        if (!granted) item {
-            P40Card {
-                Notice("As notificações estão bloqueadas. Permita para receber os lembretes.", warning = true)
-                Spacer(Modifier.height(8.dp))
-                Button(onClick = { if (Build.VERSION.SDK_INT >= 33) launcher.launch(Manifest.permission.POST_NOTIFICATIONS) },
-                    colors = ButtonDefaults.buttonColors(containerColor = P40Colors.Lime, contentColor = Color.Black)) { Text("Permitir notificações") }
-            }
-        }
-        items(list, key = { it.key.name }) { r ->
-            P40Card {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text(r.key.label, fontWeight = FontWeight.SemiBold)
-                        TextButton(onClick = { pickTime(ctx, r.time) { t -> vm.save(r.copy(time = t)) } }, modifier = Modifier.padding(0.dp)) {
-                            Text("Horário: ${r.time}", color = P40Colors.Lime)
-                        }
-                    }
-                    Switch(
-                        checked = r.enabled,
-                        onCheckedChange = {
-                            if (it && !granted && Build.VERSION.SDK_INT >= 33) launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                            vm.save(r.copy(enabled = it))
-                        },
-                        colors = SwitchDefaults.colors(checkedTrackColor = P40Colors.Lime, checkedThumbColor = Color.Black),
-                    )
-                }
-            }
-        }
-        item {
-            Column {
-                OutlinedButton(onClick = { vm.test(); testSent = true }, modifier = Modifier.fillMaxWidth()) { Text("Enviar notificação de teste") }
-                if (testSent) Text("Notificação de teste agendada para daqui a ~5 segundos.", fontSize = 12.sp, color = P40Colors.TextSecondary)
-            }
-        }
-        item { Notice("Os lembretes são locais (WorkManager) e funcionam offline. O Android pode atrasá-los alguns minutos para economizar bateria.") }
     }
 }

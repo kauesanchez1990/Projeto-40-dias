@@ -15,7 +15,9 @@ import br.com.projeto40dias.data.db.MealTemplateEntity
 import br.com.projeto40dias.data.db.MealTemplateItemEntity
 import br.com.projeto40dias.data.db.ProjectEntity
 import br.com.projeto40dias.data.db.SubstitutionGroup
+import br.com.projeto40dias.data.db.Session
 import br.com.projeto40dias.data.db.SupplementLogEntity
+import br.com.projeto40dias.data.db.TemplateItemWithFood
 import br.com.projeto40dias.data.db.WaterLogEntity
 import br.com.projeto40dias.domain.DaySummary
 import br.com.projeto40dias.domain.Macros
@@ -35,6 +37,10 @@ data class MealDay(
     val done: Boolean,
 ) {
     val macros: Macros get() = NutritionCalculator.sum(items.map { it.macros() })
+}
+
+data class MealPlan(val template: MealTemplateEntity, val items: List<TemplateItemWithFood>) {
+    val macros: Macros get() = NutritionCalculator.sum(items.map { NutritionCalculator.portion(Per100(it.kcal100, it.protein100, it.carbs100, it.fat100), it.grams) })
 }
 
 data class DayNutrition(val date: LocalDate, val meals: List<MealDay>) {
@@ -58,16 +64,21 @@ class NutritionRepository(private val db: AppDatabase, private val awaitReady: s
         if (meal.isInitialized(d) > 0) return
         db.withTransaction {
             if (meal.isInitialized(d) > 0) return@withTransaction
-            val items = meal.allTemplateItems().map { DayMealItemEntity(date = d, mealId = it.mealId, foodId = it.foodId, grams = it.grams) }
+            val active = meal.templates().map { it.id }.toSet()
+            val items = meal.allTemplateItems().filter { it.mealId in active }
+                .map { DayMealItemEntity(date = d, mealId = it.mealId, foodId = it.foodId, grams = it.grams) }
             meal.insertDayItems(items)
             meal.markInitialized(DayInitializedEntity(d))
         }
     }
 
     fun observeDay(date: LocalDate): Flow<DayNutrition> =
-        combine(meal.observeTemplates(), meal.observeDayItems(date.toString()), meal.observeLogs(date.toString())) { t, items, logs ->
+        combine(meal.observeAllTemplates(), meal.observeDayItems(date.toString()), meal.observeLogs(date.toString())) { t, items, logs ->
             val doneIds = logs.filter { it.done }.map { it.mealId }.toSet()
-            DayNutrition(date, t.map { m -> MealDay(m, items.filter { it.mealId == m.id }, m.id in doneIds) })
+            val withItems = items.map { it.mealId }.toSet()
+            // Refeições removidas do cardápio continuam aparecendo nos dias em que foram registradas.
+            val visible = t.filter { !it.archived || it.id in withItems || it.id in doneIds }
+            DayNutrition(date, visible.map { m -> MealDay(m, items.filter { it.mealId == m.id }, m.id in doneIds) })
         }
 
     suspend fun setMealDone(date: LocalDate, mealId: Long, done: Boolean) =
@@ -88,9 +99,71 @@ class NutritionRepository(private val db: AppDatabase, private val awaitReady: s
         val items = meal.dayItemsOf(date.toString(), mealId)
         meal.clearTemplateItems(mealId)
         meal.insertTemplateItems(items.map { MealTemplateItemEntity(mealId = mealId, foodId = it.foodId, grams = it.grams) })
+        syncDays(mealId, except = date.toString())
     }
 
     suspend fun updateMealTemplate(t: MealTemplateEntity) = meal.upsertTemplate(t.copy(updatedAt = System.currentTimeMillis()))
+
+    // ---- Edição do cardápio padrão ----
+
+    /** Cardápio padrão ativo com os alimentos de cada refeição. */
+    fun observePlan(): Flow<List<MealPlan>> =
+        combine(meal.observeTemplates(), meal.observeTemplateItems()) { t, items ->
+            t.map { m -> MealPlan(m, items.filter { it.mealId == m.id }) }
+        }
+
+    /** Cria (id = 0) ou atualiza uma refeição do cardápio. */
+    suspend fun saveMeal(t: MealTemplateEntity): Long {
+        val now = System.currentTimeMillis()
+        return if (t.id == 0L) meal.insertTemplate(t.copy(position = meal.maxPosition() + 1, updatedAt = now))
+        else { meal.upsertTemplate(t.copy(updatedAt = now)); t.id }
+    }
+
+    /** Remove a refeição do cardápio. Dias anteriores e refeições já concluídas são preservados. */
+    suspend fun removeMeal(mealId: Long) = db.withTransaction {
+        meal.archiveTemplate(mealId, System.currentTimeMillis())
+        for (d in meal.initializedFrom(today())) {
+            if (meal.isMealDone(d, mealId) == 0) meal.clearDayItems(d, mealId)
+        }
+    }
+
+    suspend fun addTemplateItem(mealId: Long, foodId: Long, grams: Double) = db.withTransaction {
+        meal.insertTemplateItem(MealTemplateItemEntity(mealId = mealId, foodId = foodId, grams = grams))
+        syncDays(mealId)
+    }
+
+    suspend fun setTemplateGrams(itemId: Long, grams: Double) = db.withTransaction {
+        val item = meal.templateItem(itemId) ?: return@withTransaction
+        meal.updateTemplateItemGrams(itemId, grams)
+        syncDays(item.mealId)
+    }
+
+    suspend fun replaceTemplateFood(itemId: Long, foodId: Long, grams: Double) = db.withTransaction {
+        val item = meal.templateItem(itemId) ?: return@withTransaction
+        meal.replaceTemplateItemFood(itemId, foodId, grams)
+        syncDays(item.mealId)
+    }
+
+    suspend fun removeTemplateItem(itemId: Long) = db.withTransaction {
+        val item = meal.templateItem(itemId) ?: return@withTransaction
+        meal.deleteTemplateItem(itemId)
+        syncDays(item.mealId)
+    }
+
+    /**
+     * Leva a composição padrão da refeição para hoje e para os dias futuros já abertos,
+     * exceto onde a refeição já foi marcada como concluída (o que foi consumido não muda).
+     */
+    private suspend fun syncDays(mealId: Long, except: String? = null) {
+        val template = meal.templateItemsOf(mealId)
+        for (d in meal.initializedFrom(today())) {
+            if (d == except || meal.isMealDone(d, mealId) > 0) continue
+            meal.clearDayItems(d, mealId)
+            meal.insertDayItems(template.map { DayMealItemEntity(date = d, mealId = mealId, foodId = it.foodId, grams = it.grams) })
+        }
+    }
+
+    private fun today() = LocalDate.now().toString()
 
     fun observeTemplates() = meal.observeTemplates()
     fun searchFoods(q: String) = food.search(q)
@@ -107,7 +180,9 @@ data class ExerciseWithLog(val template: ExerciseTemplateEntity, val log: Exerci
     val done get() = log?.done == true
 }
 
-data class SessionDay(val session: String, val name: String, val optional: Boolean, val exercises: List<ExerciseWithLog>) {
+data class SessionDay(
+    val session: String, val name: String, val optional: Boolean, val exercises: List<ExerciseWithLog>, val time: String = "",
+) {
     val done get() = exercises.isNotEmpty() && exercises.all { it.done }
 }
 
@@ -116,10 +191,54 @@ class TrainingRepository(private val db: AppDatabase) {
 
     fun observeDay(date: LocalDate): Flow<List<SessionDay>> =
         combine(dao.observeTemplatesForDay(date.dayOfWeek.value), dao.observeLogs(date.toString())) { t, logs ->
-            groupSessions(t, logs)
+            // Exercícios removidos do treino só aparecem nos dias em que foram registrados.
+            val logged = logs.map { it.templateId }.toSet()
+            groupSessions(t.filter { !it.archived || it.id in logged }, logs)
         }
 
     fun observeWeekTemplates() = dao.observeTemplates()
+    fun observeTemplate(id: Long) = dao.observeTemplate(id)
+
+    // ---- Edição do treino semanal ----
+
+    /** Altera nome, período e horário de uma sessão inteira (todos os exercícios dela). */
+    suspend fun updateSession(dow: Int, old: Session, new: Session, name: String, time: String) =
+        dao.updateSession(dow, old, new, name, time)
+
+    /** Cria uma sessão com o primeiro exercício. */
+    suspend fun addSession(dow: Int, session: Session, name: String, time: String, first: ExerciseTemplateEntity) =
+        dao.insertTemplate(first.copy(id = 0, dayOfWeek = dow, session = session, sessionName = name, sessionTime = time, position = 0))
+
+    suspend fun removeSession(dow: Int, session: Session) = dao.archiveSession(dow, session)
+
+    /** Cria (id = 0) ou atualiza um exercício. Novo exercício entra no fim da sessão. */
+    suspend fun saveExercise(e: ExerciseTemplateEntity) = db.withTransaction {
+        if (e.id == 0L) {
+            val list = dao.sessionTemplates(e.dayOfWeek, e.session)
+            val first = list.firstOrNull()
+            dao.insertTemplate(e.copy(
+                position = (list.maxOfOrNull { it.position } ?: -1) + 1,
+                sessionName = first?.sessionName ?: e.sessionName,
+                sessionTime = first?.sessionTime ?: e.sessionTime,
+            ))
+            Unit
+        } else {
+            dao.upsertTemplates(listOf(e))
+        }
+        Unit
+    }
+
+    suspend fun removeExercise(id: Long) = dao.archiveTemplate(id)
+
+    /** Move o exercício uma posição para cima (-1) ou para baixo (+1) dentro da sessão. */
+    suspend fun moveExercise(e: ExerciseTemplateEntity, delta: Int) = db.withTransaction {
+        val list = dao.sessionTemplates(e.dayOfWeek, e.session).toMutableList()
+        val i = list.indexOfFirst { it.id == e.id }
+        val j = i + delta
+        if (i < 0 || j !in list.indices) return@withTransaction
+        val tmp = list[i]; list[i] = list[j]; list[j] = tmp
+        dao.upsertTemplates(list.mapIndexed { idx, t -> t.copy(position = idx) })
+    }
 
     suspend fun setDone(date: LocalDate, templateId: Long, done: Boolean) {
         val current = dao.log(date.toString(), templateId)
@@ -140,9 +259,10 @@ class TrainingRepository(private val db: AppDatabase) {
             return t.groupBy { Triple(it.session, it.sessionName, it.optional) }
                 .map { (k, list) ->
                     SessionDay(k.first.label, k.second, k.third,
-                        list.sortedBy { it.position }.map { ExerciseWithLog(it, byTemplate[it.id]) })
+                        list.sortedBy { it.position }.map { ExerciseWithLog(it, byTemplate[it.id]) },
+                        time = list.first().sessionTime)
                 }
-                .sortedBy { it.optional }
+                .sortedWith(compareBy({ it.optional }, { it.time }))
         }
     }
 }

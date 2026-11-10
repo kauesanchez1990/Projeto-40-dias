@@ -28,7 +28,7 @@ app/src/main/java/br/com/projeto40dias/
 ├── data/prefs     DataStore: perfil, metas e lembretes
 ├── data/repo      Repositórios (camada única de acesso a dados)
 ├── domain         Regras de negócio puras (nutrição, projeto, relatórios, corrida, recuperação)
-├── notifications  WorkManager: lembretes locais
+├── notifications  AlarmManager: lembretes locais no horário exato (refeições, água, treinos)
 ├── pdf            Exportação do relatório em PDF (PdfDocument nativo)
 └── ui             Compose: tema, componentes, navegação e telas (MVVM)
 ```

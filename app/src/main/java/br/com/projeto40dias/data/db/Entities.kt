@@ -39,6 +39,8 @@ data class MealTemplateEntity(
     val time: String, // HH:mm
     val position: Int,
     val optional: Boolean = false,
+    /** Refeição removida do cardápio. Fica guardada para não apagar o histórico dos dias anteriores. */
+    val archived: Boolean = false,
     val updatedAt: Long = System.currentTimeMillis(),
 )
 
@@ -95,6 +97,10 @@ data class ExerciseTemplateEntity(
     val targetSets: Int? = null,
     val optional: Boolean = false,
     val position: Int,
+    /** Horário da sessão (HH:mm) — o mesmo para todos os exercícios da sessão. */
+    val sessionTime: String = "09:00",
+    /** Exercício removido do treino. Fica guardado para não apagar o histórico. */
+    val archived: Boolean = false,
 )
 
 /** Registro do exercício realizado em um dia (força ou corrida). */

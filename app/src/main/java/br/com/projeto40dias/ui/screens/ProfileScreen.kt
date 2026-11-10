@@ -16,6 +16,8 @@ import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.Medication
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.DirectionsRun
+import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
@@ -155,6 +157,9 @@ fun ProfileScreen(onNavigate: (String) -> Unit) {
         item {
             P40Card {
                 Nav("Lembretes e notificações", Icons.Filled.Notifications) { onNavigate(Routes.REMINDERS) }
+                Nav("Editar dieta e horários", Icons.Filled.Restaurant) { onNavigate(Routes.DIET_PLAN) }
+                @Suppress("DEPRECATION")
+                Nav("Editar treino e horários", Icons.Filled.DirectionsRun) { onNavigate(Routes.TRAINING_PLAN) }
                 Nav("Progressão dos 40 dias", Icons.Filled.CalendarMonth) { onNavigate(Routes.PROGRESS) }
                 Nav("Relatórios e PDF", Icons.Filled.Insights) { onNavigate(Routes.REPORTS) }
                 Nav("Hidratação", Icons.Filled.WaterDrop) { onNavigate(Routes.WATER) }

@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -15,6 +16,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -125,7 +127,12 @@ fun TrainingScreen(onNavigate: (String) -> Unit) {
     val fatigued = ck != null && Recovery.showFatigueWarning(ck.fatigue, ck.soreness, ck.sleep)
 
     ScreenList {
-        item { ScreenTitle("MEUS TREINOS", "Musculação, corrida e recuperação") }
+        item {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.weight(1f)) { ScreenTitle("MEUS TREINOS", "Musculação, corrida e recuperação") }
+                IconButton(onClick = { onNavigate(Routes.TRAINING_PLAN) }) { Icon(Icons.Filled.Edit, "Editar treino", tint = P40Colors.Lime) }
+            }
+        }
         item { DateSwitcher(date, today) { vm.date.value = it } }
         item { WeekStrip(date, today, week) { vm.date.value = it } }
         item { RestTimer() }
@@ -203,7 +210,7 @@ private fun SessionCard(s: SessionDay, onToggle: (ExerciseWithLog, Boolean) -> U
     P40Card {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(s.session.uppercase(), fontSize = 11.sp, color = P40Colors.TextSecondary, fontWeight = FontWeight.Bold)
+                Text(s.session.uppercase() + if (s.time.isNotBlank()) " · ${s.time}" else "", fontSize = 11.sp, color = P40Colors.TextSecondary, fontWeight = FontWeight.Bold)
                 Text(s.name, style = MaterialTheme.typography.titleMedium, color = if (s.done) P40Colors.Lime else P40Colors.Text)
             }
             if (s.optional) Pill("OPCIONAL", P40Colors.Lime)
@@ -354,7 +361,7 @@ private fun RestTimer() {
 
 class HistoryViewModel(c: AppContainer, id: Long) : ViewModel() {
     val logs = c.training.history(id).asState(this, emptyList())
-    val template = c.training.observeWeekTemplates().map { l -> l.firstOrNull { it.id == id } }.asState(this, null)
+    val template = c.training.observeTemplate(id).asState(this, null)
 }
 
 @Composable

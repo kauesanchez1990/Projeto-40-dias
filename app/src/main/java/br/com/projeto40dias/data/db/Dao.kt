@@ -66,11 +66,25 @@ interface FoodDao {
 
 @Dao
 interface MealDao {
-    @Query("SELECT * FROM meal_templates ORDER BY position")
+    /** Todas as refeições, inclusive as removidas (para exibir o histórico de dias anteriores). */
+    @Query("SELECT * FROM meal_templates ORDER BY time, position")
+    fun observeAllTemplates(): Flow<List<MealTemplateEntity>>
+
+    /** Refeições ativas do cardápio, em ordem de horário. */
+    @Query("SELECT * FROM meal_templates WHERE archived = 0 ORDER BY time, position")
     fun observeTemplates(): Flow<List<MealTemplateEntity>>
 
-    @Query("SELECT * FROM meal_templates ORDER BY position")
+    @Query("SELECT * FROM meal_templates WHERE archived = 0 ORDER BY time, position")
     suspend fun templates(): List<MealTemplateEntity>
+
+    @Query("SELECT * FROM meal_templates WHERE id = :id")
+    suspend fun template(id: Long): MealTemplateEntity?
+
+    @Query("SELECT COALESCE(MAX(position), 0) FROM meal_templates")
+    suspend fun maxPosition(): Int
+
+    @Query("UPDATE meal_templates SET archived = 1, updatedAt = :now WHERE id = :id")
+    suspend fun archiveTemplate(id: Long, now: Long)
 
     @Insert
     suspend fun insertTemplate(t: MealTemplateEntity): Long
@@ -92,6 +106,34 @@ interface MealDao {
 
     @Query("DELETE FROM meal_template_items WHERE mealId = :mealId")
     suspend fun clearTemplateItems(mealId: Long)
+
+    @Query("SELECT * FROM meal_template_items WHERE mealId = :mealId ORDER BY id")
+    suspend fun templateItemsOf(mealId: Long): List<MealTemplateItemEntity>
+
+    @Query("SELECT * FROM meal_template_items WHERE id = :id")
+    suspend fun templateItem(id: Long): MealTemplateItemEntity?
+
+    @Insert
+    suspend fun insertTemplateItem(item: MealTemplateItemEntity): Long
+
+    @Query("UPDATE meal_template_items SET grams = :grams WHERE id = :id")
+    suspend fun updateTemplateItemGrams(id: Long, grams: Double)
+
+    @Query("UPDATE meal_template_items SET foodId = :foodId, grams = :grams WHERE id = :id")
+    suspend fun replaceTemplateItemFood(id: Long, foodId: Long, grams: Double)
+
+    @Query("DELETE FROM meal_template_items WHERE id = :id")
+    suspend fun deleteTemplateItem(id: Long)
+
+    /** Dias já abertos a partir de uma data (inclusive). */
+    @Query("SELECT date FROM day_initialized WHERE date >= :from")
+    suspend fun initializedFrom(from: String): List<String>
+
+    @Query("SELECT COUNT(*) FROM meal_logs WHERE date = :date AND mealId = :mealId AND done = 1")
+    suspend fun isMealDone(date: String, mealId: Long): Int
+
+    @Query("DELETE FROM day_meal_items WHERE date = :date AND mealId = :mealId")
+    suspend fun clearDayItems(date: String, mealId: Long)
 
     // ---- Dia ----
     @Query("SELECT COUNT(*) FROM day_initialized WHERE date = :date")
@@ -149,17 +191,46 @@ interface MealDao {
 
 @Dao
 interface TrainingDao {
-    @Query("SELECT * FROM exercise_templates ORDER BY dayOfWeek, session, position")
+    /** Treino ativo da semana. */
+    @Query("SELECT * FROM exercise_templates WHERE archived = 0 ORDER BY dayOfWeek, sessionTime, position")
     fun observeTemplates(): Flow<List<ExerciseTemplateEntity>>
 
-    @Query("SELECT * FROM exercise_templates WHERE dayOfWeek = :dow ORDER BY session, position")
+    /** Exercícios do dia da semana, inclusive removidos (filtrados no repositório conforme o histórico). */
+    @Query("SELECT * FROM exercise_templates WHERE dayOfWeek = :dow ORDER BY sessionTime, position")
     fun observeTemplatesForDay(dow: Int): Flow<List<ExerciseTemplateEntity>>
+
+    @Query("SELECT * FROM exercise_templates WHERE id = :id")
+    fun observeTemplate(id: Long): Flow<ExerciseTemplateEntity?>
 
     @Query("SELECT * FROM exercise_templates")
     suspend fun allTemplates(): List<ExerciseTemplateEntity>
 
+    @Query("SELECT * FROM exercise_templates WHERE archived = 0 ORDER BY dayOfWeek, sessionTime, position")
+    suspend fun activeTemplates(): List<ExerciseTemplateEntity>
+
+    @Query("SELECT * FROM exercise_templates WHERE archived = 0 AND dayOfWeek = :dow AND session = :session ORDER BY position")
+    suspend fun sessionTemplates(dow: Int, session: Session): List<ExerciseTemplateEntity>
+
+    @Query(
+        """UPDATE exercise_templates SET session = :newSession, sessionName = :name, sessionTime = :time
+           WHERE dayOfWeek = :dow AND session = :oldSession AND archived = 0"""
+    )
+    suspend fun updateSession(dow: Int, oldSession: Session, newSession: Session, name: String, time: String)
+
+    @Query("UPDATE exercise_templates SET archived = 1 WHERE dayOfWeek = :dow AND session = :session")
+    suspend fun archiveSession(dow: Int, session: Session)
+
+    @Query("UPDATE exercise_templates SET archived = 1 WHERE id = :id")
+    suspend fun archiveTemplate(id: Long)
+
     @Insert
     suspend fun insertTemplates(list: List<ExerciseTemplateEntity>)
+
+    @Insert
+    suspend fun insertTemplate(t: ExerciseTemplateEntity): Long
+
+    @Upsert
+    suspend fun upsertTemplates(list: List<ExerciseTemplateEntity>)
 
     @Query("SELECT COUNT(*) FROM exercise_templates")
     suspend fun countTemplates(): Int

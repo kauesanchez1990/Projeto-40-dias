@@ -39,6 +39,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import br.com.projeto40dias.AppContainer
 import br.com.projeto40dias.P40App
+import br.com.projeto40dias.ui.screens.DietPlanScreen
 import br.com.projeto40dias.ui.screens.DietScreen
 import br.com.projeto40dias.ui.screens.EvolutionScreen
 import br.com.projeto40dias.ui.screens.ExerciseHistoryScreen
@@ -50,6 +51,7 @@ import br.com.projeto40dias.ui.screens.RemindersScreen
 import br.com.projeto40dias.ui.screens.ReportsScreen
 import br.com.projeto40dias.ui.screens.SubstitutionsScreen
 import br.com.projeto40dias.ui.screens.SupplementsScreen
+import br.com.projeto40dias.ui.screens.TrainingPlanScreen
 import br.com.projeto40dias.ui.screens.TrainingScreen
 import br.com.projeto40dias.ui.screens.WaterScreen
 import br.com.projeto40dias.ui.theme.P40Colors
@@ -61,6 +63,7 @@ object Routes {
     const val WATER = "water"; const val SUPPLEMENTS = "supplements"; const val PROGRESS = "progress"
     const val REPORTS = "reports"; const val REMINDERS = "reminders"; const val FOODS = "foods"
     const val SUBSTITUTIONS = "substitutions"; const val HISTORY = "history/{id}"
+    const val DIET_PLAN = "diet_plan"; const val TRAINING_PLAN = "training_plan"
     fun history(id: Long) = "history/$id"
 }
 
@@ -121,7 +124,9 @@ fun P40NavHost() {
             composable(Routes.SUPPLEMENTS) { SupplementsScreen(onBack = { nav.popBackStack() }, onNavigate = { nav.navigate(it) }) }
             composable(Routes.PROGRESS) { ProgressScreen(onBack = { nav.popBackStack() }) }
             composable(Routes.REPORTS) { ReportsScreen(onBack = { nav.popBackStack() }) }
-            composable(Routes.REMINDERS) { RemindersScreen(onBack = { nav.popBackStack() }) }
+            composable(Routes.REMINDERS) { RemindersScreen(onBack = { nav.popBackStack() }, onNavigate = { nav.navigate(it) }) }
+            composable(Routes.DIET_PLAN) { DietPlanScreen(onBack = { nav.popBackStack() }) }
+            composable(Routes.TRAINING_PLAN) { TrainingPlanScreen(onBack = { nav.popBackStack() }) }
             composable(Routes.FOODS) { FoodsScreen(onBack = { nav.popBackStack() }) }
             composable(Routes.SUBSTITUTIONS) { SubstitutionsScreen(onBack = { nav.popBackStack() }) }
             composable(Routes.HISTORY, arguments = listOf(navArgument("id") { type = NavType.LongType })) { e ->

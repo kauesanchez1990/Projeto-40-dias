@@ -41,19 +41,25 @@ data class Goals(
     val targetWeightKg: Double = 78.5,
 )
 
-enum class ReminderKey(val label: String, val defaultTime: String) {
-    PRE_TREINO("Pré-treino", "08:00"),
-    POS_TREINO("Pós-treino", "11:30"),
-    ALMOCO("Almoço", "14:00"),
-    LANCHE("Lanche", "17:00"),
-    PRE_TREINO_NOITE("Pré-treino noturno", "19:00"),
-    JANTAR("Jantar", "21:30"),
-    CREATINA("Creatina", "08:00"),
-    HIDRATACAO("Hidratação (a cada 2 h, 8h–22h)", "08:00"),
-    PESAGEM("Pesagem semanal (segunda)", "07:30"),
-}
-
-data class Reminder(val key: ReminderKey, val enabled: Boolean, val time: String)
+/**
+ * Configuração dos lembretes. Os horários das refeições e dos treinos vêm do cardápio
+ * e do treino configurados — aqui ficam só as opções de aviso.
+ */
+data class ReminderSettings(
+    val meals: Boolean = true,
+    /** Minutos de antecedência do aviso de refeição (0 = na hora). */
+    val mealsLeadMin: Int = 0,
+    val training: Boolean = true,
+    val trainingLeadMin: Int = 15,
+    val water: Boolean = true,
+    val waterStart: String = "08:00",
+    val waterEnd: String = "22:00",
+    val waterIntervalMin: Int = 120,
+    val creatine: Boolean = false,
+    val creatineTime: String = "08:00",
+    val weighIn: Boolean = false,
+    val weighInTime: String = "07:30",
+)
 
 class SettingsRepository(private val context: Context) {
 
@@ -79,8 +85,19 @@ class SettingsRepository(private val context: Context) {
         val target = doublePreferencesKey("g_target")
 
         val disclaimerAccepted = booleanPreferencesKey("disclaimer_ok")
-        fun enabled(k: ReminderKey) = booleanPreferencesKey("r_on_${k.name}")
-        fun time(k: ReminderKey) = stringPreferencesKey("r_time_${k.name}")
+        val rMeals = booleanPreferencesKey("r2_meals")
+        val rMealsLead = intPreferencesKey("r2_meals_lead")
+        val rTraining = booleanPreferencesKey("r2_training")
+        val rTrainingLead = intPreferencesKey("r2_training_lead")
+        val rWater = booleanPreferencesKey("r2_water")
+        val rWaterStart = stringPreferencesKey("r2_water_start")
+        val rWaterEnd = stringPreferencesKey("r2_water_end")
+        val rWaterInterval = intPreferencesKey("r2_water_interval")
+        // Chaves da versão anterior, reaproveitadas para creatina e pesagem.
+        val rCreatine = booleanPreferencesKey("r_on_CREATINA")
+        val rCreatineTime = stringPreferencesKey("r_time_CREATINA")
+        val rWeighIn = booleanPreferencesKey("r_on_PESAGEM")
+        val rWeighInTime = stringPreferencesKey("r_time_PESAGEM")
     }
 
     private val d = Profile()
@@ -104,8 +121,17 @@ class SettingsRepository(private val context: Context) {
         )
     }
 
-    val reminders: Flow<List<Reminder>> = context.dataStore.data.map { p ->
-        ReminderKey.entries.map { k -> Reminder(k, p[K.enabled(k)] ?: false, p[K.time(k)] ?: k.defaultTime) }
+    private val r = ReminderSettings()
+
+    val reminders: Flow<ReminderSettings> = context.dataStore.data.map { p ->
+        ReminderSettings(
+            meals = p[K.rMeals] ?: r.meals, mealsLeadMin = p[K.rMealsLead] ?: r.mealsLeadMin,
+            training = p[K.rTraining] ?: r.training, trainingLeadMin = p[K.rTrainingLead] ?: r.trainingLeadMin,
+            water = p[K.rWater] ?: r.water, waterStart = p[K.rWaterStart] ?: r.waterStart,
+            waterEnd = p[K.rWaterEnd] ?: r.waterEnd, waterIntervalMin = p[K.rWaterInterval] ?: r.waterIntervalMin,
+            creatine = p[K.rCreatine] ?: r.creatine, creatineTime = p[K.rCreatineTime] ?: r.creatineTime,
+            weighIn = p[K.rWeighIn] ?: r.weighIn, weighInTime = p[K.rWeighInTime] ?: r.weighInTime,
+        )
     }
 
     val disclaimerAccepted: Flow<Boolean> = context.dataStore.data.map { it[K.disclaimerAccepted] ?: false }
@@ -124,12 +150,17 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setWaterGoal(ml: Int) = context.dataStore.edit { it[K.water] = ml }
 
-    suspend fun saveReminder(r: Reminder) = context.dataStore.edit { p ->
-        p[K.enabled(r.key)] = r.enabled; p[K.time(r.key)] = r.time
+    suspend fun saveReminders(x: ReminderSettings) = context.dataStore.edit { p ->
+        p[K.rMeals] = x.meals; p[K.rMealsLead] = x.mealsLeadMin
+        p[K.rTraining] = x.training; p[K.rTrainingLead] = x.trainingLeadMin
+        p[K.rWater] = x.water; p[K.rWaterStart] = x.waterStart; p[K.rWaterEnd] = x.waterEnd
+        p[K.rWaterInterval] = x.waterIntervalMin
+        p[K.rCreatine] = x.creatine; p[K.rCreatineTime] = x.creatineTime
+        p[K.rWeighIn] = x.weighIn; p[K.rWeighInTime] = x.weighInTime
     }
 
     suspend fun acceptDisclaimer() = context.dataStore.edit { it[K.disclaimerAccepted] = true }
 
     suspend fun currentGoals(): Goals = goals.first()
-    suspend fun currentReminders(): List<Reminder> = reminders.first()
+    suspend fun currentReminders(): ReminderSettings = reminders.first()
 }

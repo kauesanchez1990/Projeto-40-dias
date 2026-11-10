@@ -1,6 +1,7 @@
 package br.com.projeto40dias
 
 import android.app.Application
+import androidx.work.WorkManager
 import br.com.projeto40dias.data.db.AppDatabase
 import br.com.projeto40dias.data.db.SeedData
 import br.com.projeto40dias.data.prefs.SettingsRepository
@@ -16,7 +17,10 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -52,14 +56,27 @@ class P40App : Application() {
     override fun onCreate() {
         super.onCreate()
         container = AppContainer(this)
-        Notifier.createChannel(this)
+        Notifier.createChannels(this)
         container.scope.launch {
             try {
                 SeedData.seedIfEmpty(container.db, LocalDate.now(), container.settings.currentGoals().targetWeightKg)
             } finally {
                 container.seeded.complete(Unit)
             }
-            ReminderScheduler.applyAll(this@P40App, container.settings.currentReminders())
+            // Lembretes da versão anterior (WorkManager) foram substituídos por alarmes exatos.
+            runCatching { WorkManager.getInstance(this@P40App).cancelAllWorkByTag("reminder") }
+        }
+        // Reagenda sempre que o cardápio, o treino ou as opções de lembrete mudarem.
+        container.scope.launch {
+            container.seeded.await()
+            combine(
+                container.db.mealDao().observeTemplates(),
+                container.db.trainingDao().observeTemplates(),
+                container.settings.reminders,
+            ) { _, _, _ -> Unit }.collectLatest {
+                delay(500)
+                runCatching { ReminderScheduler.scheduleAll(this@P40App) }
+            }
         }
     }
 }

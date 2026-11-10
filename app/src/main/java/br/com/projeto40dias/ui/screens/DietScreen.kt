@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.SwapHoriz
@@ -126,6 +127,7 @@ fun DietScreen(onNavigate: (String) -> Unit) {
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.weight(1f)) { ScreenTitle("MINHA DIETA", "Cardápio, consumo e substituições") }
+                IconButton(onClick = { onNavigate(Routes.DIET_PLAN) }) { Icon(Icons.Filled.Edit, "Editar dieta", tint = P40Colors.Lime) }
                 IconButton(onClick = { onNavigate(Routes.SUBSTITUTIONS) }) { Icon(Icons.Filled.SwapHoriz, "Substituições", tint = P40Colors.Lime) }
                 IconButton(onClick = { onNavigate(Routes.FOODS) }) {
                     @Suppress("DEPRECATION")
@@ -310,6 +312,15 @@ private fun SubstitutePicker(item: DayItemWithFood, grams: Double, vm: DietViewM
 fun FoodPickerDialog(vm: DietViewModel, onDismiss: () -> Unit, onPick: (FoodEntity, Double) -> Unit) {
     val q by vm.query.collectAsState()
     val results by vm.results.collectAsState()
+    FoodSearchDialog(q, { vm.query.value = it }, results, onDismiss, onPick)
+}
+
+/** Diálogo de busca de alimento + quantidade (usado no dia e no cardápio padrão). */
+@Composable
+fun FoodSearchDialog(
+    q: String, onQuery: (String) -> Unit, results: List<FoodEntity>,
+    onDismiss: () -> Unit, onPick: (FoodEntity, Double) -> Unit,
+) {
     var selected by remember { mutableStateOf<FoodEntity?>(null) }
     var grams by remember { mutableStateOf("100") }
 
@@ -320,7 +331,7 @@ fun FoodPickerDialog(vm: DietViewModel, onDismiss: () -> Unit, onPick: (FoodEnti
             val sel = selected
             if (sel == null) {
                 Column {
-                    OutlinedTextField(q, { vm.query.value = it }, label = { Text("Pesquisar") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(q, onQuery, label = { Text("Pesquisar") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                     Spacer(Modifier.height(6.dp))
                     LazyColumn(Modifier.heightIn(max = 340.dp)) {
                         items(results, key = { it.id }) { f ->

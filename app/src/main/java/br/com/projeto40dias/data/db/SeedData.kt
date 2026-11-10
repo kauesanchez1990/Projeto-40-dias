@@ -89,8 +89,12 @@ object SeedData {
     private fun ex(dow: Int, session: Session, sessionName: String, items: List<Triple<String, String, Int?>>, type: ExerciseType = S, optional: Boolean = false) =
         items.mapIndexed { i, (n, presc, sets) ->
             ExerciseTemplateEntity(dayOfWeek = dow, session = session, sessionName = sessionName, name = n, type = type,
-                prescription = presc, targetSets = sets, optional = optional, position = i)
+                prescription = presc, targetSets = sets, optional = optional, position = i,
+                sessionTime = defaultSessionTime(session))
         }
+
+    /** Horários iniciais das sessões (editáveis em Treinos › Editar treino). */
+    fun defaultSessionTime(s: Session) = when (s) { Session.MANHA -> "09:00"; Session.NOITE -> "20:00"; Session.DIA -> "10:00" }
 
     private val training: List<ExerciseTemplateEntity> =
         ex(1, Session.MANHA, "Superiores A", listOf(
