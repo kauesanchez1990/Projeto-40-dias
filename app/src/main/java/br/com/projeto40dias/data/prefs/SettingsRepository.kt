@@ -19,16 +19,16 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(na
 data class Profile(
     val name: String = "Kaue Sanchez",
     val sex: String = "Masculino",
-    val age: Int = 35,
+    val age: Int = 36,
     val heightCm: Double = 171.0,
-    val initialWeightKg: Double = 82.5,
-    val muscleKg: Double = 38.5,
-    val fatMassKg: Double = 16.3,
-    val fatPct: Double = 19.7,
-    val visceral: Double = 6.0,
-    val waistHipRatio: Double = 0.93,
-    val bmrKcal: Int = 1800,
-    val bioDate: String = "2026-08-06",
+    val initialWeightKg: Double = 83.9,
+    val muscleKg: Double = 38.8,
+    val fatMassKg: Double = 17.2,
+    val fatPct: Double = 20.5,
+    val visceral: Double = 7.0,
+    val waistHipRatio: Double = 0.97,
+    val bmrKcal: Int = 1810,
+    val bioDate: String = "2026-11-10",
 )
 
 /** Metas editáveis. */

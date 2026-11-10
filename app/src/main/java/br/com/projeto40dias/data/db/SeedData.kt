@@ -152,6 +152,13 @@ object SeedData {
                 notes = "Avaliação inicial",
             ))
 
+            // Avaliação atual — MEDIDA por bioimpedância (InBody) em 10/11/2026.
+            db.bodyDao().upsert(BodyMeasurementEntity(
+                date = "2026-11-10", source = MeasureSource.BIOIMPEDANCIA, weightKg = 83.9, fatPct = 20.5,
+                fatMassKg = 17.2, muscleKg = 38.8, visceral = 7.0, waistHipRatio = 0.97,
+                notes = "Bioimpedância 10/11/2026 — pontuação 86, TMB 1810 kcal",
+            ))
+
             db.projectDao().insert(ProjectEntity(startDate = today.toString(), targetWeightKg = targetWeight))
         }
     }

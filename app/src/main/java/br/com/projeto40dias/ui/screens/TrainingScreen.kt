@@ -99,7 +99,7 @@ class TrainingViewModel(private val c: AppContainer) : ViewModel() {
     /** Peso usado na estimativa de kcal da corrida: última pesagem medida, senão o peso inicial do perfil. */
     val weightForEstimate = combine(c.body.all(), c.settings.profile) { m, p ->
         m.filter { it.weightKg != null }.maxByOrNull { it.date }?.weightKg ?: p.initialWeightKg
-    }.asState(this, 82.5)
+    }.asState(this, 83.9)
 
     fun history(id: Long): Flow<List<ExerciseLogEntity>> = c.training.history(id)
     fun setDone(templateId: Long, done: Boolean) = viewModelScope.launch { c.training.setDone(date.value, templateId, done) }
