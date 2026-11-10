@@ -3,6 +3,9 @@ package br.com.projeto40dias
 import android.Manifest
 import android.content.Intent
 import android.graphics.Bitmap
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.SemanticsNodeInteractionCollection
 import androidx.compose.ui.test.hasScrollToNodeAction
 import androidx.compose.ui.test.hasText
@@ -53,6 +56,10 @@ class ScreenshotTest {
 
     private fun text(t: String) = rule.onAllNodesWithText(t).click()
     private fun desc(d: String) = rule.onAllNodesWithContentDescription(d).click()
+
+    /** Aba da barra inferior (o ícone não tem descrição quando o rótulo aparece). */
+    private fun tab(label: String) =
+        rule.onAllNodes(hasText(label) and SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Tab)).click()
     private fun scrollTo(t: String) = rule.onAllNodes(hasScrollToNodeAction()).onFirst().performScrollToNode(hasText(t))
 
     /** Executa uma etapa; se falhar, registra o erro e segue para as próximas capturas. */
@@ -72,7 +79,7 @@ class ScreenshotTest {
 
         // ---------------- Dieta
         step("dieta") {
-            desc("Dieta"); waitText("MINHA DIETA")
+            tab("DIETA"); waitText("MINHA DIETA")
             shot("01_dieta_com_botao_editar")
             desc("Editar dieta"); waitText("Pré-treino")
             shot("02_editar_dieta")
@@ -86,7 +93,7 @@ class ScreenshotTest {
 
         // ---------------- Treinos
         step("treino") {
-            desc("Treinos"); waitText("MEUS TREINOS")
+            tab("TREINOS"); waitText("MEUS TREINOS")
             shot("05_treinos_com_horario")
             desc("Editar treino"); waitText("Editar treino")
             text("SEG"); waitText("Supino reto")
@@ -101,7 +108,7 @@ class ScreenshotTest {
 
         // ---------------- Lembretes
         step("lembretes") {
-            desc("Perfil")
+            tab("PERFIL")
             scrollTo("Lembretes e notificações"); text("Lembretes e notificações")
             waitText("Refeições")
             shot("09_lembretes")
