@@ -1,0 +1,11 @@
+<resources>
+    <!-- Android 12+: a abertura do sistema mostra o ícone do cachorro em fundo preto,
+         emendando com a tela de abertura completa do app. -->
+    <style name="Theme.Projeto40Dias" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/splash_background</item>
+        <item name="android:statusBarColor">#FF000000</item>
+        <item name="android:navigationBarColor">#FF16181B</item>
+        <item name="android:windowSplashScreenBackground">@color/splash_background</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@color/splash_background</item>
+    </style>
+</resources>

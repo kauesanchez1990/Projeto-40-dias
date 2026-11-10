@@ -72,10 +72,21 @@ class ScreenshotTest {
 
     @Test
     fun telasNovas() {
+        // Tela de abertura (relógio do Compose pausado para pegar a animação no meio)
+        step("abertura") {
+            rule.mainClock.autoAdvance = false
+            rule.mainClock.advanceTimeBy(1_200)
+            Thread.sleep(1_000)
+            instr.uiAutomation.takeScreenshot()?.let { bmp ->
+                FileOutputStream(File(dir, "00_abertura.png")).use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            }
+        }
+        rule.mainClock.autoAdvance = true
+
         // Aviso inicial
         runCatching { waitText("Entendi", 8_000); text("Entendi") }
         rule.waitForIdle()
-        step("inicio") { shot("00_inicio") }
+        step("inicio") { shot("00_inicio_aviso") }
 
         // ---------------- Dieta
         step("dieta") {
